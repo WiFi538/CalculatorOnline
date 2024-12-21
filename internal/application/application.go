@@ -1,166 +1,83 @@
-package application_test
+package application
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
+	"fmt"
+	"log"
 	"net/http"
-	"net/http/httptest"
-	"testing"
 
-	"github.com/wifi538/CalculatorOnline/internal/application"
 	"github.com/wifi538/CalculatorOnline/pkg/calculator"
 )
 
-type ResultResponse struct {
+const (
+	port = ":8080"
+)
+
+type Application struct {
+}
+
+func New() *Application {
+	return &Application{}
+}
+
+type Request struct {
+	Expression string `json:"expression"`
+}
+
+type Response struct {
 	Result float64 `json:"result"`
 }
 
-type ErrorResponse struct {
-	Error string `json:"error"`
+type Error struct {
+	Result string `json:"error"`
 }
 
-func TestApplication(t *testing.T) {
-	testCasesSuccess := []struct {
-		name        string
-		expression  []byte
-		expectedRes ResultResponse
-		status      int
-	}{
-		{
-			name:        "simple",
-			expression:  []byte(`{"expression":"1 + 1"}`),
-			expectedRes: ResultResponse{Result: 2},
-			status:      http.StatusOK,
-		},
-		{
-			name:        "priority",
-			expression:  []byte(`{"expression":"( 2 + 2 ) * 2"}`),
-			expectedRes: ResultResponse{Result: 8},
-			status:      http.StatusOK,
-		},
+func СalcHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Request: %v %v", r.Method, r.URL.Path)
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		log.Printf("Code: %v, Invalid request method", http.StatusMethodNotAllowed)
+		e := Error{Result: "invalid request method"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(e)
+		return
 	}
 
-	for _, TestCase := range testCasesSuccess {
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/calculate", bytes.NewBuffer(TestCase.expression))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		application.СalcHandler(w, req)
-		res := w.Result()
-		defer res.Body.Close()
-
-		data, err := io.ReadAll(res.Body)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		var actualResults ResultResponse
-		err = json.Unmarshal(data, &actualResults)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if TestCase.expectedRes != actualResults {
-			t.Fatalf("Test: %s, Expected result: %v, but got: %v", TestCase.name, data, TestCase.expectedRes)
-		}
-		if res.StatusCode != http.StatusOK {
-			t.Fatalf("Test: %s, Expected status: %d, but got: %d", TestCase.name, http.StatusOK, res.StatusCode)
-		}
-	}
-
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/calculate", nil)
-
-	w := httptest.NewRecorder()
-	application.СalcHandler(w, request)
-	res := w.Result()
-	defer res.Body.Close()
-
-	data, err := io.ReadAll(res.Body)
+	var req Request
+	err := json.NewDecoder(r.Body).Decode(&req)
+	log.Printf("Expression: %v", req)
 	if err != nil {
-		t.Fatal(err)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		log.Printf("Code: %v, Invalid request body", http.StatusUnprocessableEntity)
+		e := Error{Result: "invalid request body"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(e)
+		return
 	}
 
-	var actualErr ErrorResponse
-	err = json.Unmarshal(data, &actualErr)
+	fmt.Println(req.Expression)
+	result, err := calculator.Calc(req.Expression)
 	if err != nil {
-		t.Fatal(err)
-	}
-	expectedErr := ErrorResponse{Error: "invalid request method"}
-	if expectedErr != actualErr {
-		t.Fatalf("Expected error: %s, but got: %s", expectedErr, actualErr)
-	}
-
-	if res.StatusCode != http.StatusMethodNotAllowed {
-		t.Fatalf("Expected status: %d, but got: %d", http.StatusMethodNotAllowed, res.StatusCode)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		log.Printf("Code: %v, Error: %v", http.StatusUnprocessableEntity, err)
+		e := Error{Result: err.Error()}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(e)
+		return
 	}
 
-	testCasesFail := []struct {
-		name        string
-		expression  []byte
-		expectedErr ErrorResponse
-		status      int
-	}{
-		{
-			name:        "invalid body",
-			expression:  []byte(`aaa`),
-			expectedErr: ErrorResponse{Error: "invalid request body"},
-			status:      http.StatusMethodNotAllowed,
-		},
-		{
-			name:        "wrong character",
-			expression:  []byte(`{"expression":"2 + a"}`),
-			expectedErr: ErrorResponse{Error: calculator.ErrWrongCharacter.Error()},
-			status:      http.StatusUnprocessableEntity,
-		},
-		{
-			name:        "empty brackets",
-			expression:  []byte(`{"expression":"()"}`),
-			expectedErr: ErrorResponse{Error: calculator.ErrEmptyBrackets.Error()},
-			status:      http.StatusUnprocessableEntity,
-		},
-		{
-			name:        "division by zero",
-			expression:  []byte(`{"expression":"2/(1 - 1)"}`),
-			expectedErr: ErrorResponse{Error: calculator.ErrDivisionByZero.Error()},
-			status:      http.StatusUnprocessableEntity,
-		},
-		{
-			name:        "bracket is not closed",
-			expression:  []byte(`{"expression":"(1 + 2"}`),
-			expectedErr: ErrorResponse{Error: calculator.ErrNotClosedBracket.Error()},
-			status:      http.StatusUnprocessableEntity,
-		},
-		{
-			name:        "merger operators",
-			expression:  []byte(`{"expression":"1 +* 2"}`),
-			expectedErr: ErrorResponse{Error: calculator.ErrMergedOperators.Error()},
-			status:      http.StatusUnprocessableEntity,
-		},
-	}
+	log.Printf("Code: %v, Result: %v", http.StatusOK, result)
+	resp := Response{Result: result}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
 
-	for _, TestCase := range testCasesFail {
-		request := httptest.NewRequest(http.MethodPost, "/api/v1/calculate", bytes.NewBuffer(TestCase.expression))
-		request.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		application.СalcHandler(w, request)
-		res := w.Result()
-		defer res.Body.Close()
+func (a *Application) RunServer() {
+	http.HandleFunc("/api/v1/calculate", СalcHandler)
 
-		data, err := io.ReadAll(res.Body)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		var actualErr ErrorResponse
-		err = json.Unmarshal(data, &actualErr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if TestCase.expectedErr != actualErr {
-			t.Fatalf("Expected error: %s, but got: %s", TestCase.expectedErr, data)
-		}
-		if res.StatusCode != http.StatusUnprocessableEntity {
-			t.Fatalf("Expected status: %d, but got: %d", http.StatusUnprocessableEntity, res.StatusCode)
-		}
+	log.Printf("Starting server on %v", port)
+	err := http.ListenAndServe(port, nil)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
