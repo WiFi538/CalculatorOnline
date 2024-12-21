@@ -6,11 +6,13 @@ import (
 	"github.com/wifi538/CalculatorOnline/pkg/calculator"
 )
 
+// основная функция тестирования
 func TestCalc(t *testing.T) {
+	//тесты с успешным выполнением
 	testCasesSuccess := []struct {
-		name           string
-		expression     string
-		expectedResult float64
+		name           string  //название теста
+		expression     string  //выражение
+		expectedResult float64 //ожидаемый результат
 	}{
 		{
 			name:           "simple",
@@ -34,22 +36,27 @@ func TestCalc(t *testing.T) {
 		},
 	}
 
+	//проверка каждого случая из testCasesSuccess
 	for _, testCase := range testCasesSuccess {
 		t.Run(testCase.name, func(t *testing.T) {
+			//вызываем Calc с тестовым значением
 			val, err := calculator.Calc(testCase.expression)
+			//при ошибке тест завершается с ошибкой
 			if err != nil {
 				t.Fatalf("successful case %s returns error", testCase.expression)
 			}
+			//проверка результата с ожиданием
 			if val != testCase.expectedResult {
 				t.Fatalf("%f should be equal %f", val, testCase.expectedResult)
 			}
 		})
 	}
 
+	//тесты с ошибками
 	testCasesFail := []struct {
-		name        string
-		expression  string
-		expectedErr error
+		name        string //название теста
+		expression  string //выражение
+		expectedErr error  //ожидаемая ошибка
 	}{
 		{
 			name:       "last is operator",
@@ -81,9 +88,12 @@ func TestCalc(t *testing.T) {
 		},
 	}
 
+	//проверка каждого случая из testCasesFail
 	for _, testCase := range testCasesFail {
 		t.Run(testCase.name, func(t *testing.T) {
+			//вызываем Calc с тестовым значением
 			val, err := calculator.Calc(testCase.expression)
+			//если ошибки не было, тест завершается с ошибкой
 			if err == nil {
 				t.Fatalf("expression %s is invalid but result %f was obtained", testCase.expression, val)
 			}
