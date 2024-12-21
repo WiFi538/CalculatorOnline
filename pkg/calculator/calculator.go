@@ -2,7 +2,6 @@ package calculator
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"unicode"
 )
@@ -106,14 +105,4 @@ func Calc(expression string) (float64, error) {
 	}
 
 	return numStack[0], nil
-}
-
-func main() {
-	expression := "3 + 5 * (2 - 8)"
-	result, err := Calc(expression)
-	if err != nil {
-		fmt.Println("Ошибка:", err)
-	} else {
-		fmt.Println("Результат:", result)
-	}
 }
