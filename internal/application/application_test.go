@@ -12,20 +12,24 @@ import (
 	"github.com/wifi538/CalculatorOnline/pkg/calculator"
 )
 
+// структура для десериализации успешного ответа
 type ResultResponse struct {
-	Result float64 `json:"result"`
+	Result float64 `json:"result"` //результат вычисления
 }
 
+// структура для десериализации ответа с ошибкой
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Error string `json:"error"` //текст ошибки
 }
 
+// проверка на корректность обработки запросов
 func TestApplication(t *testing.T) {
+	//набор тестов с успешной обработкой
 	testCasesSuccess := []struct {
-		name        string
-		expression  []byte
-		expectedRes ResultResponse
-		status      int
+		name        string         //название теста
+		expression  []byte         //выражение
+		expectedRes ResultResponse //ожидаемый ответ
+		status      int            //ожидаемый статус HTTP
 	}{
 		{
 			name:        "simple",
@@ -41,6 +45,7 @@ func TestApplication(t *testing.T) {
 		},
 	}
 
+	//проверка каждого теста из testCasesSuccess
 	for _, TestCase := range testCasesSuccess {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/calculate", bytes.NewBuffer(TestCase.expression))
 		req.Header.Set("Content-Type", "application/json")
@@ -54,12 +59,14 @@ func TestApplication(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		//десериализируем ответ в ResultResponse
 		var actualResults ResultResponse
 		err = json.Unmarshal(data, &actualResults)
 		if err != nil {
 			t.Fatal(err)
 		}
 
+		//проверка совпадения статуса ответа с ожидаемым ответом
 		if TestCase.expectedRes != actualResults {
 			t.Fatalf("Test: %s, Expected result: %v, but got: %v", TestCase.name, data, TestCase.expectedRes)
 		}
@@ -80,25 +87,29 @@ func TestApplication(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	//десериализируем ответ с ошибкой
 	var actualErr ErrorResponse
 	err = json.Unmarshal(data, &actualErr)
 	if err != nil {
 		t.Fatal(err)
 	}
+	//ожидаемый ответ с ошибкой
 	expectedErr := ErrorResponse{Error: "invalid request method"}
 	if expectedErr != actualErr {
 		t.Fatalf("Expected error: %s, but got: %s", expectedErr, actualErr)
 	}
 
+	//проверяем совпадение статуса ответа с ожидаемым ответом
 	if res.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("Expected status: %d, but got: %d", http.StatusMethodNotAllowed, res.StatusCode)
 	}
 
+	//набор тестов с ошибками
 	testCasesFail := []struct {
-		name        string
-		expression  []byte
-		expectedErr ErrorResponse
-		status      int
+		name        string        //название теста
+		expression  []byte        //выражение
+		expectedErr ErrorResponse //ожидаемый ответ с ошибкой
+		status      int           //ожидаемый статус HTTP
 	}{
 		{
 			name:        "invalid body",
@@ -138,6 +149,7 @@ func TestApplication(t *testing.T) {
 		},
 	}
 
+	//проверяем каждого теста из testCasesFail
 	for _, TestCase := range testCasesFail {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/calculate", bytes.NewBuffer(TestCase.expression))
 		request.Header.Set("Content-Type", "application/json")
@@ -156,9 +168,11 @@ func TestApplication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		//проверка совпадения ошибки с ожидаемой ошибкой
 		if TestCase.expectedErr != actualErr {
 			t.Fatalf("Expected error: %s, but got: %s", TestCase.expectedErr, data)
 		}
+		//проверка совпадения статуса ответа с ожидаемым ответом
 		if res.StatusCode != http.StatusUnprocessableEntity {
 			t.Fatalf("Expected status: %d, but got: %d", http.StatusUnprocessableEntity, res.StatusCode)
 		}
