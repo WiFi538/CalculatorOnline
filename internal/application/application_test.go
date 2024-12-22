@@ -68,10 +68,10 @@ func TestApplication(t *testing.T) {
 		}
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/calculate", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/calculate", nil)
 
 	w := httptest.NewRecorder()
-	application.СalcHandler(w, request)
+	application.СalcHandler(w, req)
 	res := w.Result()
 	defer res.Body.Close()
 
